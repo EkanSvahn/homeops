@@ -25,6 +25,8 @@ export type Event = {
   startAt: string; // ISO
   endAt?: string;  // ISO
   location?: string;
+  completed?: boolean; // Om händelsen är genomförd
+  completedAt?: string; // ISO - när händelsen markerades som färdig
 };
 
 export const people: Person[] = [

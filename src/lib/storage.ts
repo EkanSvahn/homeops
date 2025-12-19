@@ -1,14 +1,15 @@
 // src/lib/storage.ts
 // Utility för att spara och ladda state från localStorage
 
-import type { Task } from "./homeops.mock";
+import type { Task, Event } from "./homeops.mock";
 
-const STORAGE_KEY = "homeops-tasks";
+const TASKS_STORAGE_KEY = "homeops-tasks";
+const EVENTS_STORAGE_KEY = "homeops-events";
 
 export function loadTasksFromStorage(): Task[] | null {
   if (typeof window === "undefined") return null;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(TASKS_STORAGE_KEY);
     if (!stored) return null;
     return JSON.parse(stored);
   } catch {
@@ -19,9 +20,29 @@ export function loadTasksFromStorage(): Task[] | null {
 export function saveTasksToStorage(tasks: Task[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
   } catch (error) {
     console.error("Failed to save tasks to localStorage:", error);
+  }
+}
+
+export function loadEventsFromStorage(): Event[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(EVENTS_STORAGE_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+export function saveEventsToStorage(events: Event[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+  } catch (error) {
+    console.error("Failed to save events to localStorage:", error);
   }
 }
 
