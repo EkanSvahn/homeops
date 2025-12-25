@@ -14,6 +14,7 @@ type ReceiptSectionProps = {
 export function ReceiptSection({ documentId }: ReceiptSectionProps) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -119,21 +120,12 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
                   {receipt.store && ` • ${receipt.store}`}
                 </div>
               </div>
-              {receipt.fileType.startsWith("image/") && (
-                <button
-                  onClick={() => {
-                    const newWindow = window.open();
-                    if (newWindow) {
-                      newWindow.document.write(
-                        `<img src="${receipt.fileUrl}" style="max-width: 100%; height: auto;" />`
-                      );
-                    }
-                  }}
-                  className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-                >
-                  Visa
-                </button>
-              )}
+              <button
+                onClick={() => setPreviewReceipt(receipt)}
+                className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-50 active:scale-[0.99] transition-all"
+              >
+                {receipt.fileType.startsWith("image/") ? "Visa" : "Öppna"}
+              </button>
               <button
                 onClick={() => handleDeleteReceipt(receipt.id)}
                 className="shrink-0 rounded-full p-2 hover:bg-red-50 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -144,6 +136,70 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Preview Modal */}
+      {previewReceipt && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm"
+            onClick={() => setPreviewReceipt(null)}
+          />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold truncate">
+                    {previewReceipt.fileName}
+                  </h3>
+                  {previewReceipt.store && (
+                    <p className="text-sm text-slate-500 mt-1">
+                      {previewReceipt.store}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setPreviewReceipt(null)}
+                  className="rounded-full p-2 hover:bg-neutral-100 active:scale-95 transition-all ml-4"
+                  aria-label="Stäng"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-6">
+                {previewReceipt.fileType.startsWith("image/") ? (
+                  <img
+                    src={previewReceipt.fileUrl}
+                    alt={previewReceipt.fileName}
+                    className="w-full h-auto rounded-lg"
+                  />
+                ) : previewReceipt.fileType === "application/pdf" ? (
+                  <iframe
+                    src={previewReceipt.fileUrl}
+                    className="w-full h-[600px] rounded-lg border"
+                    title={previewReceipt.fileName}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-slate-600">
+                      Förhandsvisning inte tillgänglig för denna filtyp
+                    </p>
+                    <a
+                      href={previewReceipt.fileUrl}
+                      download={previewReceipt.fileName}
+                      className="mt-4 inline-block rounded-xl bg-black px-6 py-3 text-base font-semibold text-white hover:bg-slate-800"
+                    >
+                      Ladda ner
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
