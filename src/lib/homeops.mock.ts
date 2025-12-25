@@ -16,6 +16,7 @@ export type Task = {
   status: TaskStatus;
   completedAt?: string; // ISO - när task blev klar
   tags?: Array<"Ta med" | "Skola" | "Viktigt" | string>; // Generiska tags
+  pinned?: boolean; // Om task är pinad (viktig)
 };
 
 export type Event = {

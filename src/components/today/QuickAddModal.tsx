@@ -12,12 +12,21 @@ type QuickAddModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSave: (item: Task | Event) => void;
+  itemToEdit?: Task | Event | null;
 };
 
 const AVAILABLE_TAGS = ["Ta med", "Skola", "Viktigt"];
 
-export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
-  const [mode, setMode] = useState<InputMode>("quick");
+export function QuickAddModal({
+  isOpen,
+  onClose,
+  onSave,
+  itemToEdit,
+}: QuickAddModalProps) {
+  const isEditMode = !!itemToEdit;
+  const [mode, setMode] = useState<InputMode>(
+    isEditMode ? "advanced" : "quick"
+  );
   const [quickInput, setQuickInput] = useState("");
   const [parsedData, setParsedData] = useState<{
     personId: Exclude<PersonId, "family">;
@@ -35,6 +44,75 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
   const [time, setTime] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [location, setLocation] = useState("");
+
+  // Pre-fyll formulär när itemToEdit ändras
+  useEffect(() => {
+    if (!isOpen) {
+      // Reset när modal stängs - använd en funktion för att batcha updates
+      const resetForm = () => {
+        setTitle("");
+        setType("task");
+        setPersonId("erik");
+        setDate("");
+        setTime("");
+        setTags([]);
+        setLocation("");
+        setQuickInput("");
+        setParsedData(null);
+        setMode("quick");
+      };
+      // Använd requestAnimationFrame för att undvika synkron setState
+      requestAnimationFrame(resetForm);
+      return;
+    }
+
+    if (itemToEdit) {
+      // Använd requestAnimationFrame för att undvika synkron setState
+      requestAnimationFrame(() => {
+        if ("startAt" in itemToEdit) {
+          // Event
+          const event = itemToEdit as Event;
+          setType("event");
+          setTitle(event.title);
+          setPersonId(event.personId);
+          if (event.startAt) {
+            const d = new Date(event.startAt);
+            // Använd lokal tid för datum, inte UTC
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            setDate(`${year}-${month}-${day}`);
+            setTime(
+              d.toLocaleTimeString("sv-SE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            );
+          }
+          if (event.location) setLocation(event.location);
+        } else {
+          // Task
+          const task = itemToEdit as Task;
+          setType("task");
+          setTitle(task.title);
+          setPersonId(task.assigneeId);
+          if (task.dueAt) {
+            const d = new Date(task.dueAt);
+            // Använd lokal tid för datum, inte UTC
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            setDate(`${year}-${month}-${day}`);
+            const hours = String(d.getHours()).padStart(2, "0");
+            const minutes = String(d.getMinutes()).padStart(2, "0");
+            setTime(`${hours}:${minutes}`);
+          }
+          if (task.tags) setTags(task.tags);
+        }
+        setMode("advanced");
+      });
+    }
+  }, [itemToEdit, isOpen]);
 
   // Parse quick input när den ändras
   useEffect(() => {
@@ -54,6 +132,15 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
   const handleQuickSubmit = () => {
     if (!parsedData) return;
 
+    // Om vi redigerar, behåll befintligt ID och typ
+    const itemId = isEditMode && itemToEdit ? itemToEdit.id : undefined;
+    const finalType =
+      isEditMode && itemToEdit
+        ? "startAt" in itemToEdit
+          ? "event"
+          : "task"
+        : parsedData.type;
+
     // Kombinera datum och tid till ISO string
     let startAtOrDueAt: string | undefined;
     if (parsedData.date && parsedData.time) {
@@ -67,23 +154,50 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
       startAtOrDueAt = dateObj.toISOString();
     }
 
-    if (parsedData.type === "event") {
+    if (finalType === "event") {
       if (!startAtOrDueAt) return;
 
       const event: Event = {
-        id: `e${Date.now()}`,
+        id: itemId || `e${Date.now()}`,
         title: parsedData.title,
         personId: parsedData.personId,
         startAt: startAtOrDueAt,
+        completed:
+          isEditMode && itemToEdit && "completed" in itemToEdit
+            ? (itemToEdit as Event).completed
+            : false,
+        completedAt:
+          isEditMode && itemToEdit && "completedAt" in itemToEdit
+            ? (itemToEdit as Event).completedAt
+            : undefined,
+        location:
+          isEditMode && itemToEdit && "location" in itemToEdit
+            ? (itemToEdit as Event).location
+            : undefined,
       };
       onSave(event);
     } else {
       const task: Task = {
-        id: `t${Date.now()}`,
+        id: itemId || `t${Date.now()}`,
         title: parsedData.title,
         assigneeId: parsedData.personId,
         dueAt: startAtOrDueAt,
-        status: "todo",
+        status:
+          isEditMode && itemToEdit && "status" in itemToEdit
+            ? itemToEdit.status
+            : "todo",
+        pinned:
+          isEditMode && itemToEdit && "pinned" in itemToEdit
+            ? itemToEdit.pinned
+            : false,
+        tags:
+          isEditMode && itemToEdit && "tags" in itemToEdit
+            ? itemToEdit.tags
+            : undefined,
+        completedAt:
+          isEditMode && itemToEdit && "completedAt" in itemToEdit
+            ? itemToEdit.completedAt
+            : undefined,
       };
       onSave(task);
     }
@@ -99,10 +213,15 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
       e.preventDefault();
     }
 
+    // Om vi redigerar, behåll befintligt ID
+    const itemId = isEditMode && itemToEdit ? itemToEdit.id : undefined;
+    // Använd typen från formuläret (användaren kan ändra typen även vid redigering)
+    const finalType = type;
+
     if (!title.trim()) return;
 
     // För events krävs datum + tid
-    if (type === "event") {
+    if (finalType === "event") {
       if (!date || !time) {
         alert("Händelse kräver både datum och tid");
         return;
@@ -124,25 +243,44 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
     }
     // Om varken datum eller tid finns, blir startAtOrDueAt undefined (OK för tasks)
 
-    if (type === "event") {
+    if (finalType === "event") {
       if (!startAtOrDueAt) return;
 
       const event: Event = {
-        id: `e${Date.now()}`,
+        id: itemId || `e${Date.now()}`,
         title: title.trim(),
         personId,
         startAt: startAtOrDueAt,
         location: location.trim() || undefined,
+        completed:
+          isEditMode && itemToEdit && "completed" in itemToEdit
+            ? (itemToEdit as Event).completed
+            : false,
+        completedAt:
+          isEditMode && itemToEdit && "completedAt" in itemToEdit
+            ? (itemToEdit as Event).completedAt
+            : undefined,
       };
       onSave(event);
     } else {
       const task: Task = {
-        id: `t${Date.now()}`,
+        id: itemId || `t${Date.now()}`,
         title: title.trim(),
         assigneeId: personId,
         dueAt: startAtOrDueAt,
-        status: "todo",
+        status:
+          isEditMode && itemToEdit && "status" in itemToEdit
+            ? itemToEdit.status
+            : "todo",
+        pinned:
+          isEditMode && itemToEdit && "pinned" in itemToEdit
+            ? itemToEdit.pinned
+            : false,
         tags: tags.length > 0 ? tags : undefined,
+        completedAt:
+          isEditMode && itemToEdit && "completedAt" in itemToEdit
+            ? itemToEdit.completedAt
+            : undefined,
       };
       onSave(task);
     }
@@ -178,10 +316,13 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
       {/* Modal */}
       <div className="fixed bottom-20 left-0 right-0 z-[60] mx-auto max-w-md rounded-t-3xl bg-white shadow-2xl max-h-[75vh] flex flex-col">
         <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
-          <h2 className="text-lg font-semibold">Snabbt tillägg</h2>
+          <h2 className="text-lg font-semibold">
+            {isEditMode ? "Redigera" : "Snabb tillägg"}
+          </h2>
           <button
             onClick={onClose}
-            className="rounded-full p-2 hover:bg-neutral-100"
+            className="rounded-full p-2 hover:bg-neutral-100 active:scale-95 transition-transform"
+            aria-label="Stäng"
           >
             ✕
           </button>
@@ -230,8 +371,9 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
                     }
                   }}
                   placeholder="Ludwig tandläkare 15/12 10:30"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
                   autoFocus
+                  autoComplete="off"
                 />
               </div>
 
@@ -328,7 +470,13 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setType("task")}
+                    onClick={() => {
+                      setType("task");
+                      // Om vi byter från event till task, rensa tid om den inte behövs
+                      if (type === "event" && !date) {
+                        setTime("");
+                      }
+                    }}
                     className={`flex-1 rounded-xl border-2 px-4 py-3 text-sm font-medium transition ${
                       type === "task"
                         ? "border-black bg-black text-white"
@@ -339,7 +487,29 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setType("event")}
+                    onClick={() => {
+                      setType("event");
+                      // Om vi byter till event, säkerställ att datum och tid finns
+                      if (!date) {
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(
+                          2,
+                          "0"
+                        );
+                        const day = String(today.getDate()).padStart(2, "0");
+                        setDate(`${year}-${month}-${day}`);
+                      }
+                      if (!time) {
+                        const now = new Date();
+                        const hours = String(now.getHours()).padStart(2, "0");
+                        const minutes = String(now.getMinutes()).padStart(
+                          2,
+                          "0"
+                        );
+                        setTime(`${hours}:${minutes}`);
+                      }
+                    }}
                     className={`flex-1 rounded-xl border-2 px-4 py-3 text-sm font-medium transition ${
                       type === "event"
                         ? "border-black bg-black text-white"
@@ -382,7 +552,7 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   min={todayDate}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
                   required={type === "event"}
                 />
               </div>
@@ -396,7 +566,7 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
                   required={type === "event"}
                 />
               </div>
@@ -451,9 +621,13 @@ export function QuickAddModal({ isOpen, onClose, onSave }: QuickAddModalProps) {
             <button
               onClick={handleQuickSubmit}
               disabled={!parsedData}
-              className="w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white shadow-lg active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl bg-black px-4 py-4 text-base font-semibold text-white shadow-lg active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
             >
-              {parsedData ? "Spara" : "Skriv något först"}
+              {parsedData
+                ? isEditMode
+                  ? "Uppdatera"
+                  : "Spara"
+                : "Skriv något först"}
             </button>
           ) : (
             <button

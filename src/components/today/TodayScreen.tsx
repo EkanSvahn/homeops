@@ -97,7 +97,9 @@ type TodayModel = {
   selected: PersonId;
   eventsToday: Event[];
   eventsTomorrow: Event[];
+  eventsUpcoming: Event[];
   tasksOpen: Task[];
+  tasksUpcoming: Task[];
   tasksDoneToday: Task[];
 };
 
@@ -108,7 +110,10 @@ export default function TodayScreen() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [completedPanelOpen, setCompletedPanelOpen] = useState(false);
+  const [upcomingTasksOpen, setUpcomingTasksOpen] = useState(false);
+  const [upcomingEventsOpen, setUpcomingEventsOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<Task | Event | null>(null);
 
   // Ladda tasks och events från localStorage vid mount
   useEffect(() => {
@@ -159,6 +164,15 @@ export default function TodayScreen() {
       return isSameDay(new Date(t.dueAt), now);
     };
 
+    const isUpcoming = (t: Task) => {
+      if (!t.dueAt) return false;
+      const due = new Date(t.dueAt);
+      const startOfTomorrow = new Date(now);
+      startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+      startOfTomorrow.setHours(0, 0, 0, 0);
+      return due >= startOfTomorrow;
+    };
+
     const bySelectedPerson = <
       T extends { personId?: string; assigneeId?: string }
     >(
@@ -177,6 +191,20 @@ export default function TodayScreen() {
       .filter((e) => bySelectedPerson(e) && isTomorrowDate(e.startAt))
       .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
 
+    // Events: kommande (efter imorgon)
+    const isEventUpcoming = (e: Event) => {
+      if (!e.startAt) return false;
+      const start = new Date(e.startAt);
+      const startOfDayAfterTomorrow = new Date(now);
+      startOfDayAfterTomorrow.setDate(startOfDayAfterTomorrow.getDate() + 2);
+      startOfDayAfterTomorrow.setHours(0, 0, 0, 0);
+      return start >= startOfDayAfterTomorrow;
+    };
+
+    const eventsUpcoming = events
+      .filter((e) => bySelectedPerson(e) && isEventUpcoming(e))
+      .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+
     // Tasks: öppna (overdue + today + no date)
     const openTasks = tasks.filter((t) => t.status !== "done");
 
@@ -186,7 +214,12 @@ export default function TodayScreen() {
           bySelectedPerson(t) && (isOverdue(t) || isDueToday(t) || !t.dueAt)
       )
       .sort((a, b) => {
-        // Sortering: overdue först, sedan idag med tid, sedan idag utan tid
+        // Sortering: pinned först, sedan overdue, sedan idag med tid, sedan idag utan tid
+        const aPinned = a.pinned || false;
+        const bPinned = b.pinned || false;
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+
         const aOverdue = isOverdue(a);
         const bOverdue = isOverdue(b);
         if (aOverdue && !bOverdue) return -1;
@@ -198,6 +231,23 @@ export default function TodayScreen() {
         if (!aHasTime && bHasTime) return 1;
 
         // Båda har tid eller båda saknar tid - sortera på tid
+        if (a.dueAt && b.dueAt) {
+          return +new Date(a.dueAt) - +new Date(b.dueAt);
+        }
+        return 0;
+      });
+
+    // Tasks: kommande (imorgon och framåt)
+    const tasksUpcoming = openTasks
+      .filter((t) => bySelectedPerson(t) && isUpcoming(t))
+      .sort((a, b) => {
+        // Sortering: pinned först, sedan på datum
+        const aPinned = a.pinned || false;
+        const bPinned = b.pinned || false;
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+
+        // Sortera på datum
         if (a.dueAt && b.dueAt) {
           return +new Date(a.dueAt) - +new Date(b.dueAt);
         }
@@ -220,7 +270,15 @@ export default function TodayScreen() {
         return +new Date(b.completedAt) - +new Date(a.completedAt); // Nyaste först
       });
 
-    return { selected, eventsToday, eventsTomorrow, tasksOpen, tasksDoneToday };
+    return {
+      selected,
+      eventsToday,
+      eventsTomorrow,
+      eventsUpcoming,
+      tasksOpen,
+      tasksUpcoming,
+      tasksDoneToday,
+    };
   }, [selected, tasks, events]);
 
   const setPerson = (person: PersonId) => {
@@ -242,6 +300,142 @@ export default function TodayScreen() {
     });
     setTasks(updated);
     saveTasksToStorage(updated);
+  };
+
+  const handleSnooze = (taskId: string, target: "later-today" | "tomorrow") => {
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        const now = new Date();
+        let newDueAt: string;
+
+        if (target === "later-today") {
+          // Sätt till 2 timmar från nu, eller 18:00 om det är senare
+          const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+          const endOfDay = new Date(now);
+          endOfDay.setHours(18, 0, 0, 0);
+          newDueAt = (later < endOfDay ? later : endOfDay).toISOString();
+        } else {
+          // Imorgon kl 12:00
+          const tomorrow = new Date(now);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(12, 0, 0, 0);
+          newDueAt = tomorrow.toISOString();
+        }
+
+        return {
+          ...t,
+          dueAt: newDueAt,
+        };
+      }
+      return t;
+    });
+    setTasks(updated);
+    saveTasksToStorage(updated);
+  };
+
+  const handleDelegate = (
+    taskId: string,
+    newAssigneeId: Exclude<PersonId, "family">
+  ) => {
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          assigneeId: newAssigneeId,
+        };
+      }
+      return t;
+    });
+    setTasks(updated);
+    saveTasksToStorage(updated);
+  };
+
+  const handleTogglePin = (taskId: string) => {
+    const updated = tasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          pinned: !t.pinned,
+        };
+      }
+      return t;
+    });
+    setTasks(updated);
+    saveTasksToStorage(updated);
+  };
+
+  const handleEdit = (item: Task | Event) => {
+    setItemToEdit(item);
+    setIsQuickAddOpen(true);
+  };
+
+  const handleDelete = (item: Task | Event) => {
+    if (confirm("Är du säker på att du vill ta bort detta?")) {
+      if ("startAt" in item) {
+        // Event
+        const updated = events.filter((e) => e.id !== item.id);
+        setEvents(updated);
+        saveEventsToStorage(updated);
+      } else {
+        // Task
+        const updated = tasks.filter((t) => t.id !== item.id);
+        setTasks(updated);
+        saveTasksToStorage(updated);
+      }
+    }
+  };
+
+  const handleSave = (item: Task | Event) => {
+    if (itemToEdit && itemToEdit.id === item.id) {
+      // Redigerar befintligt item
+      const wasEvent = "startAt" in itemToEdit;
+      const isEvent = "startAt" in item;
+
+      if (wasEvent && isEvent) {
+        // Event -> Event (uppdatera)
+        const updated = events.map((e) => (e.id === item.id ? item : e));
+        setEvents(updated);
+        saveEventsToStorage(updated);
+      } else if (!wasEvent && !isEvent) {
+        // Task -> Task (uppdatera)
+        const updated = tasks.map((t) => (t.id === item.id ? item : t));
+        setTasks(updated);
+        saveTasksToStorage(updated);
+      } else if (wasEvent && !isEvent) {
+        // Event -> Task (konvertera)
+        // Ta bort från events, lägg till i tasks
+        const updatedEvents = events.filter((e) => e.id !== item.id);
+        setEvents(updatedEvents);
+        saveEventsToStorage(updatedEvents);
+
+        const updatedTasks = [...tasks, item];
+        setTasks(updatedTasks);
+        saveTasksToStorage(updatedTasks);
+      } else if (!wasEvent && isEvent) {
+        // Task -> Event (konvertera)
+        // Ta bort från tasks, lägg till i events
+        const updatedTasks = tasks.filter((t) => t.id !== item.id);
+        setTasks(updatedTasks);
+        saveTasksToStorage(updatedTasks);
+
+        const updatedEvents = [...events, item];
+        setEvents(updatedEvents);
+        saveEventsToStorage(updatedEvents);
+      }
+    } else {
+      // Nytt item
+      if ("startAt" in item) {
+        // New event
+        setEvents([...events, item]);
+        saveEventsToStorage([...events, item]);
+      } else {
+        // New task
+        setTasks([...tasks, item]);
+        saveTasksToStorage([...tasks, item]);
+      }
+    }
+    setItemToEdit(null);
+    setIsQuickAddOpen(false);
   };
 
   const handleToggleEventDone = (eventId: string) => {
@@ -266,20 +460,6 @@ export default function TodayScreen() {
     });
     setEvents(updated);
     saveEventsToStorage(updated);
-  };
-
-  const handleSave = (item: Task | Event) => {
-    if ("assigneeId" in item) {
-      // Det är en Task
-      const newTasks = [...tasks, item];
-      setTasks(newTasks);
-      saveTasksToStorage(newTasks);
-    } else {
-      // Det är en Event
-      const newEvents = [...events, item];
-      setEvents(newEvents);
-      saveEventsToStorage(newEvents);
-    }
   };
 
   return (
@@ -324,6 +504,8 @@ export default function TodayScreen() {
                 key={e.id}
                 event={e}
                 onToggleDone={() => handleToggleEventDone(e.id)}
+                onEdit={() => handleEdit(e)}
+                onDelete={() => handleDelete(e)}
               />
             ))
           )}
@@ -340,6 +522,8 @@ export default function TodayScreen() {
                 key={e.id}
                 event={e}
                 onToggleDone={() => handleToggleEventDone(e.id)}
+                onEdit={() => handleEdit(e)}
+                onDelete={() => handleDelete(e)}
               />
             ))
           )}
@@ -366,11 +550,105 @@ export default function TodayScreen() {
                   isToday={!!isToday}
                   isTomorrow={!!isTomorrowTask}
                   onMarkDone={() => handleMarkDone(t.id)}
+                  onSnooze={(target) => handleSnooze(t.id, target)}
+                  onDelegate={(personId) => handleDelegate(t.id, personId)}
+                  onTogglePin={() => handleTogglePin(t.id)}
+                  onEdit={() => handleEdit(t)}
+                  onDelete={() => handleDelete(t)}
                 />
               );
             })
           )}
         </CardList>
+
+        {/* Kommande Händelser */}
+        {model.eventsUpcoming.length > 0 && (
+          <div className="rounded-2xl border bg-white shadow-sm">
+            <button
+              onClick={() => setUpcomingEventsOpen(!upcomingEventsOpen)}
+              className="w-full px-4 py-3 text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold">
+                    Kommande Händelser ({model.eventsUpcoming.length})
+                  </div>
+                  <div className="text-sm text-slate-500">Efter imorgon</div>
+                </div>
+                <div className="text-sm text-slate-500">
+                  {upcomingEventsOpen ? "▼" : "▶"}
+                </div>
+              </div>
+            </button>
+            {upcomingEventsOpen && (
+              <div className="border-t p-2">
+                <CardList>
+                  {model.eventsUpcoming.map((e) => (
+                    <EventRow
+                      key={e.id}
+                      event={e}
+                      onToggleDone={() => handleToggleEventDone(e.id)}
+                      onEdit={() => handleEdit(e)}
+                      onDelete={() => handleDelete(e)}
+                      isUpcoming={true}
+                    />
+                  ))}
+                </CardList>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Kommande Uppgifter */}
+        {model.tasksUpcoming.length > 0 && (
+          <div className="rounded-2xl border bg-white shadow-sm">
+            <button
+              onClick={() => setUpcomingTasksOpen(!upcomingTasksOpen)}
+              className="w-full px-4 py-3 text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold">
+                    Kommande Uppgifter ({model.tasksUpcoming.length})
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    Imorgon och framåt
+                  </div>
+                </div>
+                <div className="text-sm text-slate-500">
+                  {upcomingTasksOpen ? "▼" : "▶"}
+                </div>
+              </div>
+            </button>
+            {upcomingTasksOpen && (
+              <div className="border-t p-2">
+                <CardList>
+                  {model.tasksUpcoming.map((t) => {
+                    const isTomorrowTask =
+                      t.dueAt && isTomorrow(new Date(t.dueAt));
+                    return (
+                      <TaskRow
+                        key={t.id}
+                        task={t}
+                        isOverdue={false}
+                        isToday={false}
+                        isTomorrow={!!isTomorrowTask}
+                        onMarkDone={() => handleMarkDone(t.id)}
+                        onSnooze={(target) => handleSnooze(t.id, target)}
+                        onDelegate={(personId) =>
+                          handleDelegate(t.id, personId)
+                        }
+                        onTogglePin={() => handleTogglePin(t.id)}
+                        onEdit={() => handleEdit(t)}
+                        onDelete={() => handleDelete(t)}
+                      />
+                    );
+                  })}
+                </CardList>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Klart Panel */}
         {model.tasksDoneToday.length > 0 && (
@@ -412,8 +690,12 @@ export default function TodayScreen() {
       {/* Quick Add Modal */}
       <QuickAddModal
         isOpen={isQuickAddOpen}
-        onClose={() => setIsQuickAddOpen(false)}
+        onClose={() => {
+          setIsQuickAddOpen(false);
+          setItemToEdit(null);
+        }}
         onSave={handleSave}
+        itemToEdit={itemToEdit}
       />
     </div>
   );
@@ -468,12 +750,39 @@ function CardList({ children }: { children: React.ReactNode }) {
 function EventRow({
   event,
   onToggleDone,
+  onEdit,
+  onDelete,
+  isUpcoming,
 }: {
   event: Event;
   onToggleDone: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isUpcoming?: boolean;
 }) {
+  const [eventMenuOpen, setEventMenuOpen] = useState(false);
+  const [eventMenuUpward, setEventMenuUpward] = useState(false);
   const isCompleted = event.completed;
   const timeIndicator = getTimeIndicator(event.startAt);
+
+  // Formatera datum för kommande händelser
+  const formatEventDate = () => {
+    if (!event.startAt) return "";
+    const eventDate = new Date(event.startAt);
+
+    // Om det är imorgon, visa "Imorgon" + tid
+    if (isTomorrow(eventDate)) {
+      return `Imorgon ${timeHHMM(event.startAt)}`;
+    }
+
+    // Annars visa datum + tid (för kommande events)
+    const dateStr = eventDate.toLocaleDateString("sv-SE", {
+      day: "numeric",
+      month: "short",
+    });
+    const timeStr = timeHHMM(event.startAt);
+    return `${dateStr} ${timeStr}`;
+  };
 
   return (
     <div
@@ -481,8 +790,12 @@ function EventRow({
         isCompleted ? "opacity-60" : ""
       }`}
     >
-      <div className="w-12 text-xs font-semibold text-neutral-600">
-        {timeHHMM(event.startAt)}
+      <div
+        className={`${
+          isUpcoming ? "w-24" : "w-12"
+        } text-xs font-semibold text-neutral-600 shrink-0`}
+      >
+        {isUpcoming ? formatEventDate() : timeHHMM(event.startAt)}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1">
@@ -505,13 +818,15 @@ function EventRow({
               {event.location}
             </div>
           )}
-          <span
-            className={`text-xs ${
-              isCompleted ? "text-slate-300" : "text-slate-400"
-            }`}
-          >
-            {timeIndicator}
-          </span>
+          {!isUpcoming && (
+            <span
+              className={`text-xs ${
+                isCompleted ? "text-slate-300" : "text-slate-400"
+              }`}
+            >
+              {timeIndicator}
+            </span>
+          )}
         </div>
         {isCompleted && event.completedAt && (
           <div className="text-xs text-slate-400 mt-1">
@@ -519,22 +834,81 @@ function EventRow({
           </div>
         )}
       </div>
-      <div className="shrink-0">
-        {!isCompleted ? (
-          <button
-            onClick={onToggleDone}
-            className="rounded-full border bg-white px-3 py-1 text-xs font-semibold hover:bg-neutral-50 active:scale-[0.99] transition-all"
-          >
-            Färdig
-          </button>
-        ) : (
-          <button
-            onClick={onToggleDone}
-            className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 active:scale-[0.99] transition-all"
-            title="Återställ"
-          >
-            ✓ Ångra
-          </button>
+      <div className="shrink-0 relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const buttonRect = e.currentTarget.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const quickAddButtonHeight = 112;
+            const estimatedMenuHeight = 200;
+            const spaceBelow = viewportHeight - buttonRect.bottom;
+            const shouldOpenUpward =
+              spaceBelow < estimatedMenuHeight ||
+              buttonRect.bottom + estimatedMenuHeight >
+                viewportHeight - quickAddButtonHeight;
+            setEventMenuOpen(true);
+            setEventMenuUpward(shouldOpenUpward);
+          }}
+          className="rounded-full border bg-white px-3 py-1 text-xs font-semibold hover:bg-neutral-50 active:scale-[0.99] transition-all"
+        >
+          ⋯
+        </button>
+        {eventMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-[70]"
+              onClick={() => {
+                setEventMenuOpen(false);
+              }}
+            />
+            <div
+              className={`absolute right-0 z-[80] bg-white border rounded-xl shadow-lg min-w-[160px] overflow-hidden ${
+                eventMenuUpward ? "bottom-full mb-1" : "top-full mt-1"
+              }`}
+            >
+              {!isCompleted ? (
+                <button
+                  onClick={() => {
+                    onToggleDone();
+                    setEventMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                >
+                  <span>✓</span> Färdig
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onToggleDone();
+                    setEventMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                >
+                  <span>↩</span> Ångra
+                </button>
+              )}
+              <div className="border-t my-1"></div>
+              <button
+                onClick={() => {
+                  onEdit();
+                  setEventMenuOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+              >
+                <span>✏️</span> Redigera
+              </button>
+              <button
+                onClick={() => {
+                  onDelete();
+                  setEventMenuOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+              >
+                <span>🗑️</span> Ta bort
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -547,20 +921,64 @@ function TaskRow({
   isToday,
   isTomorrow,
   onMarkDone,
+  onSnooze,
+  onDelegate,
+  onTogglePin,
+  onEdit,
+  onDelete,
 }: {
   task: Task;
   isOverdue: boolean;
   isToday: boolean;
   isTomorrow: boolean;
   onMarkDone: () => void;
+  onSnooze: (target: "later-today" | "tomorrow") => void;
+  onDelegate: (personId: Exclude<PersonId, "family">) => void;
+  onTogglePin: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
+  const [showActions, setShowActions] = useState(false);
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const [showDelegateMenu, setShowDelegateMenu] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+
+  // Formatera datum/tid för visning
+  const formatDueDate = () => {
+    if (!task.dueAt) return "—";
+    const dueDate = new Date(task.dueAt);
+
+    // Om det är idag, visa bara tid
+    if (isToday) {
+      return timeHHMM(task.dueAt);
+    }
+
+    // Om det är imorgon, visa "Imorgon" + tid
+    if (isTomorrow) {
+      return `Imorgon ${timeHHMM(task.dueAt)}`;
+    }
+
+    // Annars visa datum + tid (för kommande tasks)
+    const dateStr = dueDate.toLocaleDateString("sv-SE", {
+      day: "numeric",
+      month: "short",
+    });
+    const timeStr = timeHHMM(task.dueAt);
+    return `${dateStr} ${timeStr}`;
+  };
+
   return (
-    <div className="flex items-center gap-3 rounded-xl px-3 py-3 transition-all hover:bg-neutral-50">
-      <div className="w-12 text-xs font-semibold text-neutral-600">
-        {task.dueAt ? timeHHMM(task.dueAt) : "—"}
+    <div className="flex items-center gap-3 rounded-xl px-3 py-3 transition-all hover:bg-neutral-50 relative">
+      <div className="w-20 text-xs font-semibold text-neutral-600 shrink-0">
+        {formatDueDate()}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1">
+          {task.pinned && (
+            <span className="text-amber-500 text-sm" title="Pinnad">
+              📌
+            </span>
+          )}
           <div
             className={`truncate text-sm font-semibold ${
               isOverdue ? "text-red-600" : ""
@@ -588,13 +1006,155 @@ function TaskRow({
           )}
         </div>
       </div>
-      <div className="shrink-0">
+      <div className="shrink-0 relative">
         <button
-          onClick={onMarkDone}
+          onClick={(e) => {
+            const buttonRect = e.currentTarget.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const quickAddButtonHeight = 112; // bottom-28 (112px) + button height
+            const estimatedMenuHeight = 300; // Estimated max height of menu
+
+            // Check if menu would go below Quick Add button
+            const spaceBelow = viewportHeight - buttonRect.bottom;
+
+            // Open upward if there's not enough space below, or if it would overlap with Quick Add
+            const shouldOpenUpward =
+              spaceBelow < estimatedMenuHeight ||
+              buttonRect.bottom + estimatedMenuHeight >
+                viewportHeight - quickAddButtonHeight;
+
+            setOpenUpward(shouldOpenUpward);
+            setShowActions(!showActions);
+          }}
           className="rounded-full border bg-white px-3 py-1 text-xs font-semibold hover:bg-neutral-50 active:scale-[0.99] transition-all"
         >
-          Klar
+          ⋯
         </button>
+
+        {showActions && (
+          <>
+            <div
+              className="fixed inset-0 z-[70]"
+              onClick={() => {
+                setShowActions(false);
+                setShowSnoozeMenu(false);
+                setShowDelegateMenu(false);
+              }}
+            />
+            <div
+              className={`absolute right-0 z-[80] bg-white border rounded-xl shadow-lg min-w-[160px] overflow-hidden ${
+                openUpward ? "bottom-full mb-1" : "top-full mt-1"
+              }`}
+            >
+              <button
+                onClick={() => {
+                  onMarkDone();
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+              >
+                <span>✓</span> Klar
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowSnoozeMenu(!showSnoozeMenu);
+                    setShowDelegateMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                >
+                  <span>⏰</span> Snooze
+                  <span className="ml-auto">▶</span>
+                </button>
+                {showSnoozeMenu && (
+                  <div className="bg-slate-50 border-t">
+                    <button
+                      onClick={() => {
+                        onSnooze("later-today");
+                        setShowActions(false);
+                        setShowSnoozeMenu(false);
+                      }}
+                      className="w-full px-4 py-2 pl-8 text-left text-xs hover:bg-neutral-100"
+                    >
+                      Senare idag
+                    </button>
+                    <button
+                      onClick={() => {
+                        onSnooze("tomorrow");
+                        setShowActions(false);
+                        setShowSnoozeMenu(false);
+                      }}
+                      className="w-full px-4 py-2 pl-8 text-left text-xs hover:bg-neutral-100"
+                    >
+                      Imorgon
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowDelegateMenu(!showDelegateMenu);
+                    setShowSnoozeMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                >
+                  <span>👤</span> Delegera
+                  <span className="ml-auto">▶</span>
+                </button>
+                {showDelegateMenu && (
+                  <div className="bg-slate-50 border-t">
+                    {people.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          onDelegate(p.id);
+                          setShowActions(false);
+                          setShowDelegateMenu(false);
+                        }}
+                        className={`w-full px-4 py-2 pl-8 text-left text-xs hover:bg-neutral-100 ${
+                          task.assigneeId === p.id
+                            ? "bg-blue-50 font-semibold"
+                            : ""
+                        }`}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  onTogglePin();
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+              >
+                <span>📌</span> {task.pinned ? "Ta bort pin" : "Pin"}
+              </button>
+              <div className="border-t my-1"></div>
+              <button
+                onClick={() => {
+                  onEdit();
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+              >
+                <span>✏️</span> Redigera
+              </button>
+              <button
+                onClick={() => {
+                  onDelete();
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+              >
+                <span>🗑️</span> Ta bort
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
