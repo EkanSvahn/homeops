@@ -1,0 +1,123 @@
+"use client";
+
+import { useState } from "react";
+import type { ShoppingItem } from "@/lib/shopping.types";
+
+type ShoppingItemRowProps = {
+  item: ShoppingItem;
+  onUpdate: (updates: Partial<ShoppingItem>) => void;
+  onDelete: () => void;
+};
+
+export function ShoppingItemRow({
+  item,
+  onUpdate,
+  onDelete,
+}: ShoppingItemRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(item.text);
+  const [showActions, setShowActions] = useState(false);
+
+  const handleToggle = () => {
+    onUpdate({ checked: !item.checked });
+  };
+
+  const handleSaveEdit = () => {
+    if (editText.trim()) {
+      onUpdate({ text: editText.trim() });
+      setIsEditing(false);
+    } else {
+      setEditText(item.text);
+      setIsEditing(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-3 py-3 transition-all hover:bg-neutral-50 relative">
+      <button
+        onClick={handleToggle}
+        className={`shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+          item.checked
+            ? "bg-green-500 border-green-500"
+            : "border-slate-300 hover:border-slate-400"
+        }`}
+        aria-label={item.checked ? "Avmarkera" : "Markera"}
+      >
+        {item.checked && <span className="text-white text-sm">✓</span>}
+      </button>
+
+      {isEditing ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSaveEdit();
+          }}
+          className="flex-1"
+        >
+          <input
+            type="text"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            onBlur={handleSaveEdit}
+            className="w-full rounded-lg border-2 border-black bg-white px-3 py-2 text-sm focus:outline-none"
+            autoFocus
+          />
+        </form>
+      ) : (
+        <button
+          onClick={() => setIsEditing(true)}
+          className={`flex-1 text-left text-sm ${
+            item.checked
+              ? "text-slate-400 line-through"
+              : "text-slate-900 font-medium"
+          }`}
+        >
+          {item.text}
+          {item.quantity && (
+            <span className="ml-2 text-xs text-slate-500">
+              ({item.quantity})
+            </span>
+          )}
+        </button>
+      )}
+
+      <div className="shrink-0 relative">
+        <button
+          onClick={() => setShowActions(!showActions)}
+          className="rounded-full border bg-white px-3 py-1 text-xs font-semibold hover:bg-neutral-50 active:scale-[0.99] transition-all"
+        >
+          ⋯
+        </button>
+        {showActions && (
+          <>
+            <div
+              className="fixed inset-0 z-[70]"
+              onClick={() => setShowActions(false)}
+            />
+            <div className="absolute right-0 top-full mt-1 z-[80] bg-white border rounded-xl shadow-lg min-w-[160px] overflow-hidden">
+              <button
+                onClick={() => {
+                  setIsEditing(true);
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+              >
+                <span>✏️</span> Redigera
+              </button>
+              <button
+                onClick={() => {
+                  onDelete();
+                  setShowActions(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+              >
+                <span>🗑️</span> Ta bort
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
