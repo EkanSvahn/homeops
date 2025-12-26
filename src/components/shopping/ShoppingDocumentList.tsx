@@ -50,7 +50,9 @@ export function ShoppingDocumentList({
     <div className="mx-auto w-full max-w-md px-4 pb-32 pt-4">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Handlingslistor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Handlingslistor
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           Skapa och hantera dina shoppinglistor
         </p>
@@ -110,52 +112,57 @@ export function ShoppingDocumentList({
       ) : (
         <div className="space-y-2">
           {documents
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime()
+            )
             .map((doc) => {
               const { total, checked } = getItemCount(doc);
               return (
                 <div
                   key={doc.id}
-                  className="group relative rounded-2xl border bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  className="group relative rounded-2xl border bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer"
+                  onClick={() => onSelectDocument(doc)}
                 >
-                  <button
-                    onClick={() => onSelectDocument(doc)}
-                    className="w-full text-left"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-base font-semibold text-slate-900 truncate">
-                          {doc.title}
-                        </h3>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
-                          <span>
-                            {checked}/{total} varor
-                          </span>
-                          <span>•</span>
-                          <span>Uppdaterad {formatDate(doc.updatedAt)}</span>
-                        </div>
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-semibold text-slate-900 truncate">
+                        {doc.title}
+                      </h3>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+                        <span>
+                          {checked}/{total} varor
+                        </span>
+                        <span>•</span>
+                        <span>Uppdaterad {formatDate(doc.updatedAt)}</span>
                       </div>
-                      {total > 0 && (
-                        <div
-                          className={`ml-3 shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                            checked === total
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {Math.round((checked / total) * 100)}%
-                        </div>
-                      )}
                     </div>
-                  </button>
+                    {total > 0 && (
+                      <div
+                        className={`ml-3 shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                          checked === total
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {Math.round((checked / total) * 100)}%
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm("Är du säker på att du vill ta bort denna lista?")) {
+                      if (
+                        confirm(
+                          "Är du säker på att du vill ta bort denna lista?"
+                        )
+                      ) {
                         onDeleteDocument(doc.id);
                       }
                     }}
-                    className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 rounded-full p-2 hover:bg-red-50 text-red-600 transition-opacity"
+                    className="absolute right-4 top-4 rounded-full p-2 text-red-600 transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-50 active:scale-95"
                     aria-label="Ta bort"
                   >
                     🗑️
@@ -168,4 +175,3 @@ export function ShoppingDocumentList({
     </div>
   );
 }
-

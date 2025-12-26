@@ -101,3 +101,9 @@ export function saveReceiptsToStorage(receipts: Receipt[]) {
   }
 }
 
+export function deleteReceiptsForDocument(documentId: string) {
+  const allReceipts = loadReceiptsFromStorage();
+  if (!allReceipts) return;
+  const updated = allReceipts.filter((r) => r.documentId !== documentId);
+  saveReceiptsToStorage(updated);
+}

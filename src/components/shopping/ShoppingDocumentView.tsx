@@ -62,7 +62,12 @@ export function ShoppingDocumentView({
           ? {
               ...item,
               ...updates,
-              checkedAt: updates.checked ? new Date().toISOString() : undefined,
+              checkedAt:
+                typeof updates.checked === "boolean"
+                  ? updates.checked
+                    ? new Date().toISOString()
+                    : undefined
+                  : item.checkedAt,
             }
           : item
       ),
@@ -118,11 +123,7 @@ export function ShoppingDocumentView({
           </h1>
         )}
         <button
-          onClick={() => {
-            if (confirm("Är du säker på att du vill ta bort denna lista?")) {
-              onDelete();
-            }
-          }}
+          onClick={onDelete}
           className="rounded-full p-2 hover:bg-red-50 text-red-600 active:scale-95 transition-all"
           aria-label="Ta bort"
         >
@@ -191,4 +192,3 @@ export function ShoppingDocumentView({
     </div>
   );
 }
-

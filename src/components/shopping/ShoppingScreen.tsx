@@ -1,32 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ShoppingDocument } from "@/lib/shopping.types";
 import {
   loadShoppingDocumentsFromStorage,
   saveShoppingDocumentsToStorage,
+  deleteReceiptsForDocument,
 } from "@/lib/storage";
 import { ShoppingDocumentList } from "./ShoppingDocumentList";
 import { ShoppingDocumentView } from "./ShoppingDocumentView";
 
 export default function ShoppingScreen() {
-  const [documents, setDocuments] = useState<ShoppingDocument[]>([]);
+  const [documents, setDocuments] = useState<ShoppingDocument[]>(
+    () => loadShoppingDocumentsFromStorage() || []
+  );
   const [selectedDocument, setSelectedDocument] = useState<ShoppingDocument | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-
-  // Ladda dokument vid mount
-  useEffect(() => {
-    const stored = loadShoppingDocumentsFromStorage();
-    if (stored && stored.length > 0) {
-      setDocuments(stored);
-    }
-  }, []);
+  const hasMountedRef = useRef(false);
 
   // Spara när documents ändras
   useEffect(() => {
-    if (documents.length > 0 || loadShoppingDocumentsFromStorage() !== null) {
-      saveShoppingDocumentsToStorage(documents);
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
     }
+    saveShoppingDocumentsToStorage(documents);
   }, [documents]);
 
   const handleCreateDocument = (title: string) => {
@@ -50,6 +48,7 @@ export default function ShoppingScreen() {
   const handleDeleteDocument = (id: string) => {
     if (confirm("Är du säker på att du vill ta bort denna lista?")) {
       setDocuments(documents.filter((d) => d.id !== id));
+      deleteReceiptsForDocument(id);
       if (selectedDocument?.id === id) {
         setSelectedDocument(null);
       }
@@ -79,4 +78,3 @@ export default function ShoppingScreen() {
     />
   );
 }
-

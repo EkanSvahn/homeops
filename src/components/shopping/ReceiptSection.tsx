@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import type { Receipt } from "@/lib/shopping.types";
 import {
   loadReceiptsFromStorage,
@@ -12,22 +12,39 @@ type ReceiptSectionProps = {
 };
 
 export function ReceiptSection({ documentId }: ReceiptSectionProps) {
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const MAX_RECEIPT_BYTES = 2_500_000; // localStorage-friendly (base64 adds overhead)
+  const [allReceipts, setAllReceipts] = useState<Receipt[]>(
+    () => loadReceiptsFromStorage() || []
+  );
   const [isUploading, setIsUploading] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const stored = loadReceiptsFromStorage();
-    if (stored) {
-      const docReceipts = stored.filter((r) => r.documentId === documentId);
-      setReceipts(docReceipts);
-    }
-  }, [documentId]);
+  const receipts = useMemo(
+    () => allReceipts.filter((r) => r.documentId === documentId),
+    [allReceipts, documentId]
+  );
+
+  const persistAllReceipts = (next: Receipt[]) => {
+    saveReceiptsToStorage(next);
+    setAllReceipts(next);
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_RECEIPT_BYTES) {
+      alert(
+        `Filen är för stor (${Math.round(file.size / 1_000_000)} MB). Välj en mindre fil (max ~${Math.round(
+          MAX_RECEIPT_BYTES / 1_000_000
+        )} MB).`
+      );
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
 
     setIsUploading(true);
 
@@ -44,10 +61,8 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
         uploadedAt: new Date().toISOString(),
       };
 
-      const allReceipts = loadReceiptsFromStorage() || [];
       const updated = [...allReceipts, newReceipt];
-      saveReceiptsToStorage(updated);
-      setReceipts([...receipts, newReceipt]);
+      persistAllReceipts(updated);
       setIsUploading(false);
 
       // Reset file input
@@ -60,10 +75,8 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
 
   const handleDeleteReceipt = (id: string) => {
     if (confirm("Är du säker på att du vill ta bort detta kvitto?")) {
-      const allReceipts = loadReceiptsFromStorage() || [];
       const updated = allReceipts.filter((r) => r.id !== id);
-      saveReceiptsToStorage(updated);
-      setReceipts(receipts.filter((r) => r.id !== id));
+      persistAllReceipts(updated);
     }
   };
 
@@ -128,7 +141,7 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
               </button>
               <button
                 onClick={() => handleDeleteReceipt(receipt.id)}
-                className="shrink-0 rounded-full p-2 hover:bg-red-50 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="shrink-0 rounded-full p-2 text-red-600 transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-50"
                 aria-label="Ta bort"
               >
                 🗑️
@@ -204,4 +217,3 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
     </div>
   );
 }
-
