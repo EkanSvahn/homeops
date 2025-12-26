@@ -7,6 +7,8 @@ export type ShoppingDocument = {
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   createdBy?: string; // PersonId (för framtida multi-user)
+  notes?: string; // Fri text-anteckningar
+  groupByCategory?: boolean; // Visa varor grupperade på kategori
   items: ShoppingItem[];
 };
 
@@ -32,4 +34,3 @@ export type Receipt = {
   amount?: number; // Belopp
   date?: string; // ISO string - datum på kvittot
 };
-

@@ -7,12 +7,14 @@ type ShoppingItemRowProps = {
   item: ShoppingItem;
   onUpdate: (updates: Partial<ShoppingItem>) => void;
   onDelete: () => void;
+  categories?: string[];
 };
 
 export function ShoppingItemRow({
   item,
   onUpdate,
   onDelete,
+  categories,
 }: ShoppingItemRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
@@ -24,7 +26,9 @@ export function ShoppingItemRow({
 
   const handleSaveEdit = () => {
     if (editText.trim()) {
-      onUpdate({ text: editText.trim() });
+      const trimmed = editText.trim();
+      setEditText(trimmed);
+      onUpdate({ text: trimmed });
       setIsEditing(false);
     } else {
       setEditText(item.text);
@@ -65,19 +69,29 @@ export function ShoppingItemRow({
         </form>
       ) : (
         <button
-          onClick={() => setIsEditing(true)}
+          onClick={() => {
+            setEditText(item.text);
+            setIsEditing(true);
+          }}
           className={`flex-1 text-left text-sm ${
             item.checked
               ? "text-slate-400 line-through"
               : "text-slate-900 font-medium"
           }`}
         >
-          {item.text}
-          {item.quantity && (
-            <span className="ml-2 text-xs text-slate-500">
-              ({item.quantity})
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="truncate">{item.text}</span>
+            {item.quantity && (
+              <span className="text-xs text-slate-500 shrink-0">
+                ({item.quantity})
+              </span>
+            )}
+            {item.category && (
+              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                {item.category}
+              </span>
+            )}
+          </div>
         </button>
       )}
 
@@ -104,6 +118,28 @@ export function ShoppingItemRow({
               >
                 <span>✏️</span> Redigera
               </button>
+              {categories && (
+                <div className="border-t border-slate-100 px-4 py-3 space-y-1">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Kategori
+                  </label>
+                  <select
+                    value={item.category || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      onUpdate({ category: value || undefined });
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/10"
+                  >
+                    <option value="">Ingen</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button
                 onClick={() => {
                   onDelete();
@@ -120,4 +156,3 @@ export function ShoppingItemRow({
     </div>
   );
 }
-

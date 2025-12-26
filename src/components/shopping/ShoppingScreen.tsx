@@ -58,6 +58,7 @@ export default function ShoppingScreen() {
   if (selectedDocument) {
     return (
       <ShoppingDocumentView
+        key={selectedDocument.id}
         document={selectedDocument}
         onBack={() => setSelectedDocument(null)}
         onUpdate={handleUpdateDocument}
