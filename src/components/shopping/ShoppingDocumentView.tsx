@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ShoppingDocument, ShoppingItem } from "@/lib/shopping.types";
 import { ShoppingItemRow } from "./ShoppingItemRow";
 import { ReceiptSection } from "./ReceiptSection";
+import { useConfirm } from "../ui/ConfirmDialog";
 
 type ShoppingDocumentViewProps = {
   document: ShoppingDocument;
@@ -122,6 +123,7 @@ export function ShoppingDocumentView({
   const [categoryOrderEditing, setCategoryOrderEditing] = useState(false);
   const [categoryDragging, setCategoryDragging] = useState<string | null>(null);
   const [categoryDragOver, setCategoryDragOver] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const handleUpdateTitle = () => {
     if (title.trim()) {
@@ -155,14 +157,16 @@ export function ShoppingDocumentView({
     setNewItemText("");
   };
 
-  const handleClearItems = () => {
+  const handleClearItems = async () => {
     if (!document.items.length) return;
-    if (
-      !confirm(
-        "Vill du tömma listan? Alla varor tas bort men listan finns kvar."
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Töm lista?",
+      body: "Alla varor tas bort men listan finns kvar.",
+      confirmText: "Töm",
+      cancelText: "Behåll",
+      variant: "danger",
+    });
+    if (!ok) return;
     onUpdate({
       ...document,
       items: [],

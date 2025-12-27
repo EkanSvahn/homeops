@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef } from "react";
 import type { Receipt } from "@/lib/shopping.types";
 import { loadReceiptsFromStorage, saveReceiptsToStorage } from "@/lib/storage";
+import { useConfirm } from "../ui/ConfirmDialog";
 
 type ReceiptSectionProps = {
   documentId: string;
@@ -16,6 +17,7 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm();
 
   const receipts = useMemo(
     () => allReceipts.filter((r) => r.documentId === documentId),
@@ -72,11 +74,18 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
     reader.readAsDataURL(file);
   };
 
-  const handleDeleteReceipt = (id: string) => {
-    if (confirm("Är du säker på att du vill ta bort detta kvitto?")) {
-      const updated = allReceipts.filter((r) => r.id !== id);
-      persistAllReceipts(updated);
-    }
+  const handleDeleteReceipt = async (id: string) => {
+    const ok = await confirm({
+      title: "Ta bort kvitto?",
+      body: "Kvitto tas bort permanent från denna enhet.",
+      confirmText: "Ta bort",
+      cancelText: "Behåll",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    const updated = allReceipts.filter((r) => r.id !== id);
+    persistAllReceipts(updated);
   };
 
   const formatDate = (iso: string) => {

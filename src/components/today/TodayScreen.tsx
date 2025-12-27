@@ -15,6 +15,7 @@ import {
   saveEventsToStorage,
 } from "@/lib/storage";
 import { QuickAddModal } from "./QuickAddModal";
+import { useConfirm } from "../ui/ConfirmDialog";
 
 function isSameDay(a: Date, b: Date) {
   return (
@@ -114,6 +115,7 @@ export default function TodayScreen() {
   const [upcomingEventsOpen, setUpcomingEventsOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<Task | Event | null>(null);
+  const confirm = useConfirm();
 
   // Ladda tasks och events från localStorage vid mount
   useEffect(() => {
@@ -369,19 +371,26 @@ export default function TodayScreen() {
     setIsQuickAddOpen(true);
   };
 
-  const handleDelete = (item: Task | Event) => {
-    if (confirm("Är du säker på att du vill ta bort detta?")) {
-      if ("startAt" in item) {
-        // Event
-        const updated = events.filter((e) => e.id !== item.id);
-        setEvents(updated);
-        saveEventsToStorage(updated);
-      } else {
-        // Task
-        const updated = tasks.filter((t) => t.id !== item.id);
-        setTasks(updated);
-        saveTasksToStorage(updated);
-      }
+  const handleDelete = async (item: Task | Event) => {
+    const ok = await confirm({
+      title: "Ta bort?",
+      body: "Objektet tas bort permanent.",
+      confirmText: "Ta bort",
+      cancelText: "Behåll",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    if ("startAt" in item) {
+      // Event
+      const updated = events.filter((e) => e.id !== item.id);
+      setEvents(updated);
+      saveEventsToStorage(updated);
+    } else {
+      // Task
+      const updated = tasks.filter((t) => t.id !== item.id);
+      setTasks(updated);
+      saveTasksToStorage(updated);
     }
   };
 

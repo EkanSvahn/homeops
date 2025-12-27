@@ -9,6 +9,7 @@ import {
 } from "@/lib/storage";
 import { ShoppingDocumentList } from "./ShoppingDocumentList";
 import { ShoppingDocumentView } from "./ShoppingDocumentView";
+import { useConfirm } from "../ui/ConfirmDialog";
 
 export default function ShoppingScreen() {
   const [documents, setDocuments] = useState<ShoppingDocument[]>(
@@ -18,6 +19,7 @@ export default function ShoppingScreen() {
     useState<ShoppingDocument | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const hasMountedRef = useRef(false);
+  const confirm = useConfirm();
 
   // Spara när documents ändras
   useEffect(() => {
@@ -46,13 +48,20 @@ export default function ShoppingScreen() {
     setSelectedDocument(updated);
   };
 
-  const handleDeleteDocument = (id: string) => {
-    if (confirm("Är du säker på att du vill ta bort denna lista?")) {
-      setDocuments(documents.filter((d) => d.id !== id));
-      deleteReceiptsForDocument(id);
-      if (selectedDocument?.id === id) {
-        setSelectedDocument(null);
-      }
+  const handleDeleteDocument = async (id: string) => {
+    const ok = await confirm({
+      title: "Ta bort lista?",
+      body: "Listan och dess varor tas bort. Kvitton kopplade till listan raderas också.",
+      confirmText: "Ta bort",
+      cancelText: "Behåll",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setDocuments(documents.filter((d) => d.id !== id));
+    deleteReceiptsForDocument(id);
+    if (selectedDocument?.id === id) {
+      setSelectedDocument(null);
     }
   };
 

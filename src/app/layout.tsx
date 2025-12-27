@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,8 +29,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-slate-50 text-slate-900 antialiased`}
       >
-        <main className="min-h-screen">{children}</main>
-        <BottomNav />
+        <ConfirmProvider>
+          <main className="min-h-screen">{children}</main>
+          <BottomNav />
+        </ConfirmProvider>
       </body>
     </html>
   );

@@ -154,13 +154,7 @@ export function ShoppingDocumentList({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (
-                        confirm(
-                          "Är du säker på att du vill ta bort denna lista?"
-                        )
-                      ) {
-                        onDeleteDocument(doc.id);
-                      }
+                      onDeleteDocument(doc.id);
                     }}
                     className="absolute right-4 top-4 rounded-full p-2 text-red-600 transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-50 active:scale-95"
                     aria-label="Ta bort"
