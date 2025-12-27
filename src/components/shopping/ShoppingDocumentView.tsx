@@ -33,6 +33,17 @@ export function ShoppingDocumentView({
     ],
     []
   );
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    "Frukt & Grönt": ["äpp", "banan", "tomat", "gurka", "potatis", "lök", "paprika", "sallad", "morot", "citron", "lime", "apelsin"],
+    Mejeri: ["mjölk", "yoghurt", "ost", "smör", "grädde", "kvarg", "creme fraiche", "fil"],
+    "Kött & Fisk": ["kyckling", "köttfärs", "biff", "fläsk", "bacon", "lax", "fisk", "räkor", "korv"],
+    "Bröd & Bageri": ["bröd", "tortilla", "baguette", "fralla", "pitabröd"],
+    Frys: ["fryst", "frysta", "glass", "frys"],
+    Skafferi: ["pasta", "ris", "krossade", "tomat", "bönor", "linser", "krydda", "mjöl", "socker", "havre", "gryn", "knäckebröd"],
+    Dryck: ["läsk", "juice", "cola", "fanta", "vatten", "öl", "vin", "kaffe", "te"],
+    Snacks: ["chips", "godis", "choklad", "nöt", "kakor", "dipp"],
+    Hushåll: ["tvätt", "disk", "toapapper", "hushållspapper", "tvål", "schampo", "sopsäck", "folie", "film"],
+  };
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(document.title);
@@ -41,6 +52,11 @@ export function ShoppingDocumentView({
   const [showBulk, setShowBulk] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "notes">("items");
   const [notes, setNotes] = useState(document.notes || "");
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [categoryOrderEditing, setCategoryOrderEditing] = useState(false);
+  const [categoryDragging, setCategoryDragging] = useState<string | null>(null);
+  const [categoryDragOver, setCategoryDragOver] = useState<string | null>(null);
 
   const handleUpdateTitle = () => {
     if (title.trim()) {
@@ -84,12 +100,17 @@ export function ShoppingDocumentView({
     if (lines.length === 0) return;
 
     const now = new Date().toISOString();
-    const newItems: ShoppingItem[] = lines.map((line, index) => ({
-      id: `item-${Date.now()}-${index}`,
-      text: line,
-      checked: false,
-      createdAt: now,
-    }));
+    const newItems: ShoppingItem[] = lines.map((line, index) => {
+      const parsed = parseLineToItem(line, CATEGORY_KEYWORDS, CATEGORY_OPTIONS);
+      return {
+        id: `item-${Date.now()}-${index}`,
+        text: parsed.text,
+        quantity: parsed.quantity,
+        category: parsed.category,
+        checked: false,
+        createdAt: now,
+      };
+    });
 
     onUpdate({
       ...document,
@@ -132,22 +153,33 @@ export function ShoppingDocumentView({
   const checkedItems = document.items.filter((i) => i.checked);
   const uncheckedItems = document.items.filter((i) => !i.checked);
 
+  const activeCategories =
+    document.categoryOrder && document.categoryOrder.length > 0
+      ? dedupeCategories(document.categoryOrder, CATEGORY_OPTIONS)
+      : CATEGORY_OPTIONS;
+
   const uncheckedByCategory = useMemo(() => {
     if (!document.groupByCategory) return [];
 
-    const groups = CATEGORY_OPTIONS.map((category) => ({
+    const groups = activeCategories.map((category) => ({
       category,
       items: uncheckedItems.filter((item) => item.category === category),
     }));
 
     const uncategorized = uncheckedItems.filter((item) => !item.category);
     return [...groups, { category: "Okategoriserat", items: uncategorized }];
-  }, [CATEGORY_OPTIONS, document.groupByCategory, uncheckedItems]);
+  }, [activeCategories, document.groupByCategory, uncheckedItems]);
+
+  const canDragItems = !document.groupByCategory && uncheckedItems.length > 1;
 
   const handleToggleGroup = () => {
     onUpdate({
       ...document,
       groupByCategory: !document.groupByCategory,
+      categoryOrder:
+        document.categoryOrder && document.categoryOrder.length > 0
+          ? document.categoryOrder
+          : CATEGORY_OPTIONS,
       updatedAt: new Date().toISOString(),
     });
   };
@@ -165,6 +197,45 @@ export function ShoppingDocumentView({
     setActiveTab("items");
     setShowBulk(true);
     setBulkText(notes.trim());
+  };
+
+  const handleReorderItems = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const ids = document.items.map((i) => i.id);
+    const fromIndex = ids.indexOf(fromId);
+    const toIndex = ids.indexOf(toId);
+    if (fromIndex === -1 || toIndex === -1) return;
+    const reordered = [...document.items];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    onUpdate({
+      ...document,
+      items: reordered,
+      updatedAt: new Date().toISOString(),
+    });
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
+  const handleReorderCategories = (from: string, to: string) => {
+    if (from === to) return;
+    const current =
+      document.categoryOrder && document.categoryOrder.length > 0
+        ? dedupeCategories(document.categoryOrder, CATEGORY_OPTIONS)
+        : CATEGORY_OPTIONS;
+    const fromIndex = current.indexOf(from);
+    const toIndex = current.indexOf(to);
+    if (fromIndex === -1 || toIndex === -1) return;
+    const updated = [...current];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+    onUpdate({
+      ...document,
+      categoryOrder: updated,
+      updatedAt: new Date().toISOString(),
+    });
+    setCategoryDragging(null);
+    setCategoryDragOver(null);
   };
 
   return (
@@ -269,6 +340,14 @@ export function ShoppingDocumentView({
               >
                 {document.groupByCategory ? "Visa utan grupper" : "Gruppera efter kategori"}
               </button>
+              {document.groupByCategory && (
+                <button
+                  onClick={() => setCategoryOrderEditing(!categoryOrderEditing)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all"
+                >
+                  {categoryOrderEditing ? "Klar" : "Ordna kategorier"}
+                </button>
+              )}
             </div>
 
             {showBulk && (
@@ -306,6 +385,55 @@ export function ShoppingDocumentView({
                 </div>
               </form>
             )}
+
+            {categoryOrderEditing && document.groupByCategory && (
+              <div className="rounded-2xl border bg-white p-3 shadow-sm space-y-2">
+                <p className="text-xs text-slate-500">
+                  Dra för att ändra ordning på kategorierna (gäller endast gruppvisning).
+                </p>
+                <div className="space-y-1">
+                  {activeCategories.map((cat) => (
+                    <div
+                      key={cat}
+                      className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${
+                        categoryDragging === cat ? "bg-slate-50 border-dashed border-slate-300" : "bg-white"
+                      }`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        setCategoryDragging(cat);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setCategoryDragOver(cat);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (categoryDragging) {
+                          handleReorderCategories(categoryDragging, cat);
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setCategoryDragging(null);
+                        setCategoryDragOver(null);
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-slate-400">↕</span>
+                        {cat}
+                      </span>
+                      {categoryDragOver === cat && categoryDragging && categoryDragging !== cat && (
+                        <span className="text-[11px] text-slate-500">Släpp här</span>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500">
+                    <span className="text-slate-400">↕</span>
+                    Okategoriserat placeras alltid sist
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Items list */}
@@ -316,6 +444,11 @@ export function ShoppingDocumentView({
               </div>
             ) : (
               <>
+                {!document.groupByCategory && canDragItems && (
+                  <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Dra för att ändra ordning
+                  </div>
+                )}
                 {document.groupByCategory
                   ? uncheckedByCategory.map(({ category, items }) =>
                       items.length === 0 ? null : (
@@ -327,6 +460,8 @@ export function ShoppingDocumentView({
                             <ShoppingItemRow
                               key={item.id}
                               item={item}
+                              draggable={false}
+                              dragging={false}
                               categories={CATEGORY_OPTIONS}
                               onUpdate={(updates) => handleUpdateItem(item.id, updates)}
                               onDelete={() => handleDeleteItem(item.id)}
@@ -339,7 +474,25 @@ export function ShoppingDocumentView({
                       <ShoppingItemRow
                         key={item.id}
                         item={item}
+                        draggable={canDragItems}
+                        dragging={draggingId === item.id}
+                        dragOver={dragOverId === item.id}
                         categories={CATEGORY_OPTIONS}
+                        onDragStart={(id) => {
+                          setDraggingId(id);
+                        }}
+                        onDragOver={(id) => {
+                          setDragOverId(id);
+                        }}
+                        onDrop={(id) => {
+                          if (draggingId) {
+                            handleReorderItems(draggingId, id);
+                          }
+                        }}
+                        onDragEnd={() => {
+                          setDraggingId(null);
+                          setDragOverId(null);
+                        }}
                         onUpdate={(updates) => handleUpdateItem(item.id, updates)}
                         onDelete={() => handleDeleteItem(item.id)}
                       />
@@ -403,4 +556,54 @@ export function ShoppingDocumentView({
       )}
     </div>
   );
+}
+
+function parseLineToItem(
+  line: string,
+  categoryKeywords: Record<string, string[]>,
+  categories: string[]
+): { text: string; quantity?: string; category?: string } {
+  const lower = line.toLowerCase();
+
+  // Quantity patterns: "2x mjölk", "2 mjölk", "500g pasta", "1 kg potatis"
+  const qtyMatch = lower.match(/^(\d+[.,]?\d*)\s*(x|st|kg|g|l|ml|cl)?\s+(.*)$/i);
+  let quantity: string | undefined;
+  let text = line;
+  if (qtyMatch) {
+    const [, amount, unitRaw, rest] = qtyMatch;
+    const unit = unitRaw ? unitRaw.replace(".", "") : "";
+    quantity = `${amount}${unit ? " " + unit : ""}`.trim();
+    text = rest.trim();
+  }
+
+  // Categorize by keyword
+  let matchedCategory: string | undefined;
+  for (const category of categories) {
+    const keywords = categoryKeywords[category];
+    if (!keywords) continue;
+    if (keywords.some((kw) => lower.includes(kw))) {
+      matchedCategory = category;
+      break;
+    }
+  }
+
+  return { text: text.trim(), quantity, category: matchedCategory };
+}
+
+function dedupeCategories(order: string[], defaults: string[]) {
+  const set = new Set<string>();
+  const result: string[] = [];
+  for (const item of order) {
+    if (!set.has(item) && defaults.includes(item)) {
+      set.add(item);
+      result.push(item);
+    }
+  }
+  for (const item of defaults) {
+    if (!set.has(item)) {
+      set.add(item);
+      result.push(item);
+    }
+  }
+  return result;
 }

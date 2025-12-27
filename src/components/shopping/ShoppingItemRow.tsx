@@ -8,6 +8,13 @@ type ShoppingItemRowProps = {
   onUpdate: (updates: Partial<ShoppingItem>) => void;
   onDelete: () => void;
   categories?: string[];
+  draggable?: boolean;
+  dragging?: boolean;
+  onDragStart?: (id: string) => void;
+  onDragOver?: (id: string) => void;
+  onDrop?: (id: string) => void;
+  onDragEnd?: () => void;
+  dragOver?: boolean;
 };
 
 export function ShoppingItemRow({
@@ -15,6 +22,13 @@ export function ShoppingItemRow({
   onUpdate,
   onDelete,
   categories,
+  draggable,
+  dragging,
+  dragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: ShoppingItemRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text);
@@ -37,7 +51,38 @@ export function ShoppingItemRow({
   };
 
   return (
-    <div className="flex items-center gap-3 rounded-xl px-3 py-3 transition-all hover:bg-neutral-50 relative">
+    <div
+      className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all hover:bg-neutral-50 relative ${
+        dragging
+          ? "opacity-60 border border-dashed border-slate-300"
+          : dragOver
+          ? "border border-slate-200"
+          : ""
+      }`}
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return;
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart?.(item.id);
+      }}
+      onDragOver={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+        onDragOver?.(item.id);
+      }}
+      onDrop={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+        onDrop?.(item.id);
+      }}
+      onDragEnd={() => {
+        if (!draggable) return;
+        onDragEnd?.();
+      }}
+    >
+      {draggable && (
+        <span className="cursor-grab select-none text-slate-400 text-lg">↕</span>
+      )}
       <button
         onClick={handleToggle}
         className={`shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${

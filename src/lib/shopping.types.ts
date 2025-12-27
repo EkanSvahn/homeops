@@ -9,6 +9,7 @@ export type ShoppingDocument = {
   createdBy?: string; // PersonId (för framtida multi-user)
   notes?: string; // Fri text-anteckningar
   groupByCategory?: boolean; // Visa varor grupperade på kategori
+  categoryOrder?: string[]; // Ordning för kategorier vid grupperad vy
   items: ShoppingItem[];
 };
 
