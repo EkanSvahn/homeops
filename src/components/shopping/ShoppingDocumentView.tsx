@@ -34,15 +34,80 @@ export function ShoppingDocumentView({
     []
   );
   const CATEGORY_KEYWORDS: Record<string, string[]> = {
-    "Frukt & Grönt": ["äpp", "banan", "tomat", "gurka", "potatis", "lök", "paprika", "sallad", "morot", "citron", "lime", "apelsin"],
-    Mejeri: ["mjölk", "yoghurt", "ost", "smör", "grädde", "kvarg", "creme fraiche", "fil"],
-    "Kött & Fisk": ["kyckling", "köttfärs", "biff", "fläsk", "bacon", "lax", "fisk", "räkor", "korv"],
+    "Frukt & Grönt": [
+      "äpp",
+      "banan",
+      "tomat",
+      "gurka",
+      "potatis",
+      "lök",
+      "paprika",
+      "sallad",
+      "morot",
+      "citron",
+      "lime",
+      "apelsin",
+    ],
+    Mejeri: [
+      "mjölk",
+      "yoghurt",
+      "ost",
+      "smör",
+      "grädde",
+      "kvarg",
+      "creme fraiche",
+      "fil",
+    ],
+    "Kött & Fisk": [
+      "kyckling",
+      "köttfärs",
+      "biff",
+      "fläsk",
+      "bacon",
+      "lax",
+      "fisk",
+      "räkor",
+      "korv",
+    ],
     "Bröd & Bageri": ["bröd", "tortilla", "baguette", "fralla", "pitabröd"],
     Frys: ["fryst", "frysta", "glass", "frys"],
-    Skafferi: ["pasta", "ris", "krossade", "tomat", "bönor", "linser", "krydda", "mjöl", "socker", "havre", "gryn", "knäckebröd"],
-    Dryck: ["läsk", "juice", "cola", "fanta", "vatten", "öl", "vin", "kaffe", "te"],
+    Skafferi: [
+      "pasta",
+      "ris",
+      "krossade",
+      "tomat",
+      "bönor",
+      "linser",
+      "krydda",
+      "mjöl",
+      "socker",
+      "havre",
+      "gryn",
+      "knäckebröd",
+    ],
+    Dryck: [
+      "läsk",
+      "juice",
+      "cola",
+      "fanta",
+      "vatten",
+      "öl",
+      "vin",
+      "kaffe",
+      "te",
+    ],
     Snacks: ["chips", "godis", "choklad", "nöt", "kakor", "dipp"],
-    Hushåll: ["tvätt", "disk", "toapapper", "hushållspapper", "tvål", "schampo", "sopsäck", "folie", "film"],
+    Hushåll: [
+      "tvätt",
+      "disk",
+      "toapapper",
+      "hushållspapper",
+      "tvål",
+      "schampo",
+      "sopsäck",
+      "folie",
+      "film",
+    ],
   };
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -88,6 +153,21 @@ export function ShoppingDocumentView({
       updatedAt: new Date().toISOString(),
     });
     setNewItemText("");
+  };
+
+  const handleClearItems = () => {
+    if (!document.items.length) return;
+    if (
+      !confirm(
+        "Vill du tömma listan? Alla varor tas bort men listan finns kvar."
+      )
+    )
+      return;
+    onUpdate({
+      ...document,
+      items: [],
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   const handleBulkAdd = (e: React.FormEvent) => {
@@ -311,41 +391,49 @@ export function ShoppingDocumentView({
                   value={newItemText}
                   onChange={(e) => setNewItemText(e.target.value)}
                   placeholder="Lägg till vara..."
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                  className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-3 text-base focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
                   autoComplete="off"
                 />
                 <button
                   type="submit"
-                  className="rounded-xl bg-black px-6 py-3 text-base font-semibold text-white hover:bg-slate-800 active:scale-[0.99] transition-all"
+                  className="shrink-0 rounded-xl bg-black px-3 sm:px-4 py-3 text-sm sm:text-base font-semibold text-white hover:bg-slate-800 active:scale-[0.99] transition-all"
                 >
-                  Lägg till
+                  <span className="hidden sm:inline">Lägg till</span>
+                  <span className="sm:hidden">+</span>
                 </button>
               </div>
             </form>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowBulk(!showBulk)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all"
+                className="rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all"
               >
-                {showBulk ? "Stäng klistra in" : "Klistra in flera"}
+                {showBulk ? "Stäng" : "Klistra in"}
               </button>
               <button
                 onClick={handleToggleGroup}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                className={`rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
                   document.groupByCategory
                     ? "bg-black text-white"
                     : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                {document.groupByCategory ? "Visa utan grupper" : "Gruppera efter kategori"}
+                <span className="hidden sm:inline">
+                  {document.groupByCategory
+                    ? "Visa utan grupper"
+                    : "Gruppera efter kategori"}
+                </span>
+                <span className="sm:hidden">
+                  {document.groupByCategory ? "Avgruppera" : "Gruppera"}
+                </span>
               </button>
               {document.groupByCategory && (
                 <button
                   onClick={() => setCategoryOrderEditing(!categoryOrderEditing)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all"
+                  className="rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition-all"
                 >
-                  {categoryOrderEditing ? "Klar" : "Ordna kategorier"}
+                  {categoryOrderEditing ? "Klar" : "Ordna"}
                 </button>
               )}
             </div>
@@ -389,14 +477,17 @@ export function ShoppingDocumentView({
             {categoryOrderEditing && document.groupByCategory && (
               <div className="rounded-2xl border bg-white p-3 shadow-sm space-y-2">
                 <p className="text-xs text-slate-500">
-                  Dra för att ändra ordning på kategorierna (gäller endast gruppvisning).
+                  Dra för att ändra ordning på kategorierna (gäller endast
+                  gruppvisning).
                 </p>
                 <div className="space-y-1">
                   {activeCategories.map((cat) => (
                     <div
                       key={cat}
                       className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${
-                        categoryDragging === cat ? "bg-slate-50 border-dashed border-slate-300" : "bg-white"
+                        categoryDragging === cat
+                          ? "bg-slate-50 border-dashed border-slate-300"
+                          : "bg-white"
                       }`}
                       draggable
                       onDragStart={(e) => {
@@ -422,9 +513,13 @@ export function ShoppingDocumentView({
                         <span className="text-slate-400">↕</span>
                         {cat}
                       </span>
-                      {categoryDragOver === cat && categoryDragging && categoryDragging !== cat && (
-                        <span className="text-[11px] text-slate-500">Släpp här</span>
-                      )}
+                      {categoryDragOver === cat &&
+                        categoryDragging &&
+                        categoryDragging !== cat && (
+                          <span className="text-[11px] text-slate-500">
+                            Släpp här
+                          </span>
+                        )}
                     </div>
                   ))}
                   <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500">
@@ -463,7 +558,9 @@ export function ShoppingDocumentView({
                               draggable={false}
                               dragging={false}
                               categories={CATEGORY_OPTIONS}
-                              onUpdate={(updates) => handleUpdateItem(item.id, updates)}
+                              onUpdate={(updates) =>
+                                handleUpdateItem(item.id, updates)
+                              }
                               onDelete={() => handleDeleteItem(item.id)}
                             />
                           ))}
@@ -493,7 +590,9 @@ export function ShoppingDocumentView({
                           setDraggingId(null);
                           setDragOverId(null);
                         }}
-                        onUpdate={(updates) => handleUpdateItem(item.id, updates)}
+                        onUpdate={(updates) =>
+                          handleUpdateItem(item.id, updates)
+                        }
                         onDelete={() => handleDeleteItem(item.id)}
                       />
                     ))}
@@ -509,7 +608,9 @@ export function ShoppingDocumentView({
                         key={item.id}
                         item={item}
                         categories={CATEGORY_OPTIONS}
-                        onUpdate={(updates) => handleUpdateItem(item.id, updates)}
+                        onUpdate={(updates) =>
+                          handleUpdateItem(item.id, updates)
+                        }
                         onDelete={() => handleDeleteItem(item.id)}
                       />
                     ))}
@@ -519,13 +620,27 @@ export function ShoppingDocumentView({
             )}
           </div>
 
+          {/* Töm lista knapp - nedanför listan */}
+          {document.items.length > 0 && (
+            <div className="mt-4">
+              <button
+                onClick={handleClearItems}
+                className="w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 active:scale-[0.99] transition-all"
+              >
+                Töm lista
+              </button>
+            </div>
+          )}
+
           {/* Receipts section */}
           <ReceiptSection documentId={document.id} />
         </>
       ) : (
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-slate-900">Anteckningar</h2>
+            <h2 className="text-base font-semibold text-slate-900">
+              Anteckningar
+            </h2>
             <div className="flex gap-2">
               <button
                 onClick={handleSendNotesToItems}
@@ -542,8 +657,9 @@ export function ShoppingDocumentView({
             </div>
           </div>
           <p className="text-xs text-slate-500 mb-2">
-            Fri text för recept, förberedelser eller idéer. Du kan klistra in flera rader här och
-            sedan konvertera dem till varor via “Klistra in flera”.
+            Fri text för recept, förberedelser eller idéer. Du kan klistra in
+            flera rader här och sedan konvertera dem till varor via “Klistra in
+            flera”.
           </p>
           <textarea
             value={notes}
@@ -566,7 +682,9 @@ function parseLineToItem(
   const lower = line.toLowerCase();
 
   // Quantity patterns: "2x mjölk", "2 mjölk", "500g pasta", "1 kg potatis"
-  const qtyMatch = lower.match(/^(\d+[.,]?\d*)\s*(x|st|kg|g|l|ml|cl)?\s+(.*)$/i);
+  const qtyMatch = lower.match(
+    /^(\d+[.,]?\d*)\s*(x|st|kg|g|l|ml|cl)?\s+(.*)$/i
+  );
   let quantity: string | undefined;
   let text = line;
   if (qtyMatch) {
