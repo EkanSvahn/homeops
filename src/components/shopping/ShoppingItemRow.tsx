@@ -81,7 +81,9 @@ export function ShoppingItemRow({
       }}
     >
       {draggable && (
-        <span className="cursor-grab select-none text-slate-400 text-lg">↕</span>
+        <span className="cursor-grab select-none text-slate-400 text-lg">
+          ↕
+        </span>
       )}
       <button
         onClick={handleToggle}

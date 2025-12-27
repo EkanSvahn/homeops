@@ -2,10 +2,7 @@
 
 import { useMemo, useState, useRef } from "react";
 import type { Receipt } from "@/lib/shopping.types";
-import {
-  loadReceiptsFromStorage,
-  saveReceiptsToStorage,
-} from "@/lib/storage";
+import { loadReceiptsFromStorage, saveReceiptsToStorage } from "@/lib/storage";
 
 type ReceiptSectionProps = {
   documentId: string;
@@ -36,7 +33,9 @@ export function ReceiptSection({ documentId }: ReceiptSectionProps) {
 
     if (file.size > MAX_RECEIPT_BYTES) {
       alert(
-        `Filen är för stor (${Math.round(file.size / 1_000_000)} MB). Välj en mindre fil (max ~${Math.round(
+        `Filen är för stor (${Math.round(
+          file.size / 1_000_000
+        )} MB). Välj en mindre fil (max ~${Math.round(
           MAX_RECEIPT_BYTES / 1_000_000
         )} MB).`
       );

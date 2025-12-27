@@ -52,8 +52,8 @@ export function saveEventsToStorage(events: Event[]) {
 export function updateTaskInStorage(taskId: string, updates: Partial<Task>) {
   const tasks = loadTasksFromStorage();
   if (!tasks) return;
-  
-  const updated = tasks.map((t) => 
+
+  const updated = tasks.map((t) =>
     t.id === taskId ? { ...t, ...updates } : t
   );
   saveTasksToStorage(updated);

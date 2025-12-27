@@ -37,21 +37,35 @@ function parseDate(text: string): string | null {
   if (lowerText.includes("idag") || lowerText.includes("i dag")) {
     return now.toISOString().split("T")[0];
   }
-  
   // Datumformat: DD/MM, DD-MM, DD.MM
   const datePatterns = [
     /(\d{1,2})[\/\-\.](\d{1,2})/, // 15/12, 15-12, 15.12
     /(\d{1,2})\s+(dec|jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov)/i, // 15 dec
   ];
-  
+
   for (const pattern of datePatterns) {
     const match = text.match(pattern);
     if (match) {
       if (match[3]) {
         // Månadsnamn
         const day = parseInt(match[1]);
-        const monthNames = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-        const month = monthNames.findIndex(m => m.toLowerCase() === match[3].toLowerCase());
+        const monthNames = [
+          "jan",
+          "feb",
+          "mar",
+          "apr",
+          "maj",
+          "jun",
+          "jul",
+          "aug",
+          "sep",
+          "okt",
+          "nov",
+          "dec",
+        ];
+        const month = monthNames.findIndex(
+          (m) => m.toLowerCase() === match[3].toLowerCase()
+        );
         if (month !== -1) {
           const year = now.getFullYear();
           const date = new Date(year, month, day);
@@ -71,7 +85,7 @@ function parseDate(text: string): string | null {
       }
     }
   }
-  
+
   return null;
 }
 
@@ -82,13 +96,13 @@ function parseTime(text: string): string | null {
     /(\d{1,2})\.(\d{2})/, // 10.30
     /(\d{3,4})\b/, // 1030 (4 siffror)
   ];
-  
+
   for (const pattern of timePatterns) {
     const match = text.match(pattern);
     if (match) {
       let hours: number;
       let minutes: number;
-      
+
       if (match[2]) {
         // Format med separator
         hours = parseInt(match[1]);
@@ -104,56 +118,61 @@ function parseTime(text: string): string | null {
           minutes = parseInt(timeStr.slice(2));
         }
       }
-      
+
       if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-        return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+        return `${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}`;
       }
     }
   }
-  
+
   return null;
 }
 
 // Huvudparser-funktion
 export function parseQuickInput(text: string): ParsedInput | null {
   if (!text.trim()) return null;
-  
+
   const personId = findPerson(text) || "erik"; // Default till Erik
   const date = parseDate(text);
   const time = parseTime(text);
-  
+
   // Ta bort person, datum och tid från texten för att få titel
   let title = text;
-  
+
   // Ta bort personnamn
   for (const person of people) {
     title = title.replace(new RegExp(person.name, "gi"), "");
   }
-  
+
   // Ta bort datum
   if (date) {
     title = title.replace(/(\d{1,2})[\/\-\.](\d{1,2})/g, "");
-    title = title.replace(/(\d{1,2})\s+(dec|jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov)/gi, "");
+    title = title.replace(
+      /(\d{1,2})\s+(dec|jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov)/gi,
+      ""
+    );
     title = title.replace(/imorgon|imorron|idag|i dag/gi, "");
   }
-  
+
   // Ta bort tid
   if (time) {
     title = title.replace(/(\d{1,2}):(\d{2})/g, "");
     title = title.replace(/(\d{1,2})\.(\d{2})/g, "");
     title = title.replace(/(\d{3,4})\b/g, "");
   }
-  
+
   // Rensa upp titel
   title = title.trim().replace(/\s+/g, " ");
-  
+
   if (!title) {
     return null; // Ingen titel kvar
   }
-  
+
   // Gissa typ: om det finns tid, är det troligen en event
   const type: "task" | "event" = time ? "event" : "task";
-  
+
   return {
     personId,
     title,
@@ -162,4 +181,3 @@ export function parseQuickInput(text: string): ParsedInput | null {
     type,
   };
 }
-

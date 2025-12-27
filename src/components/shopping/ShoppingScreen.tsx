@@ -14,7 +14,8 @@ export default function ShoppingScreen() {
   const [documents, setDocuments] = useState<ShoppingDocument[]>(
     () => loadShoppingDocumentsFromStorage() || []
   );
-  const [selectedDocument, setSelectedDocument] = useState<ShoppingDocument | null>(null);
+  const [selectedDocument, setSelectedDocument] =
+    useState<ShoppingDocument | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const hasMountedRef = useRef(false);
 
